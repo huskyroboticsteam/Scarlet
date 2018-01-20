@@ -24,6 +24,14 @@ namespace Scarlet.Utilities
             }
         }
 
+        private static String FileDestination = "ScarletLog-" + DateTime.Now.ToString("yy-MM-dd-hh-mm-ss-tt");
+
+        public static String LogFileDestination
+        {
+            get { return FileDestination; }
+            set { FileDestination = value; }
+        }
+
         private static Severity[] OutputLevels = new Severity[Enum.GetNames(typeof(Source)).Length];
 
         /// <summary> Sets all sources to have this minimum severity for output. </summary>
@@ -143,17 +151,16 @@ namespace Scarlet.Utilities
         {
             if (!FileCreated)
             {
-                string FileName = "ScarletLog-" + DateTime.Now.ToString("yy-MM-dd-hh-mm-ss-tt");
                 if (!Directory.Exists(@LogFilesLocation)) { Directory.CreateDirectory(@LogFilesLocation); }
                 string[] Files = Directory.GetFiles(@LogFilesLocation, "*.log");
                 int Iterations = 0;
-                while (Files.Contains(FileName + ".log"))
+                while (Files.Contains(FileDestination + ".log"))
                 {
-                    FileName += "_" + Iterations.ToString();
+                    FileDestination += "_" + Iterations.ToString();
                     Iterations++;
                 }
-                FileName += ".log";
-                string FileLocation = Path.Combine(LogFilesLocation, FileName);
+                FileDestination += ".log";
+                string FileLocation = Path.Combine(LogFilesLocation, FileDestination);
                 LogFile = new StreamWriter(@FileLocation);
                 FileCreated = true;
             }
