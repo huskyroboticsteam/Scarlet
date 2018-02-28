@@ -4,9 +4,9 @@ using Scarlet.IO;
 using Scarlet.Utilities;
 using System.Threading;
 
-namespace Talon
+namespace Song
 {
-    public class TalonMC : Scarlet.Components.IMotor
+    public class SongMC : Scarlet.Components.IMotor
     {
         private IFilter<float> Filter; // Filter for speed output
         private readonly IPWMOutput PWMOut;
@@ -16,16 +16,16 @@ namespace Talon
         private bool Stopped; // Whether or not the motor is stopped
         public float TargetSpeed { get; private set; } // Target speed (-1.0 to 1.0) of the motor
 
-        /// <summary> Initializes a Talon Motor controller </summary>
+        /// <summary> Initializes a SongBird Motor controller </summary>
         /// <param name="PWMOut"> PWM output to control the motor controller </param>
         /// <param name="MaxSpeed"> Limiting factor for speed (should never exceed + or - this val) </param>
         /// <param name="SpeedFilter"> Filter to use with MC. Good for ramp-up protection and other applications </param>
-        public TalonMC(IPWMOutput PWMOut, float MaxSpeed, IFilter<float> SpeedFilter = null)
+        public SongMC(IPWMOutput PWMOut, float MaxSpeed, IFilter<float> SpeedFilter = null)
         {
             this.PWMOut = PWMOut;
             this.MaxSpeed = Math.Abs(MaxSpeed);
             this.Filter = SpeedFilter;
-            this.PWMOut.SetFrequency(333);
+            this.PWMOut.SetFrequency(60);
             this.SetSpeedDirectly(0.0f);
             this.PWMOut.SetEnabled(true);
         }
@@ -96,7 +96,7 @@ namespace Talon
             if (Speed > this.MaxSpeed) { Speed = this.MaxSpeed; }
             if (-Speed > this.MaxSpeed) { Speed = -this.MaxSpeed; }
             if (this.Stopped) { Speed = 0; }
-            this.PWMOut.SetOutput((Speed + 1.0f) * (0.3333333f) / (2.0f) + 0.3333333f);
+            this.PWMOut.SetOutput((Speed * (50f / 17.6f)) + (150f / 17.6f));
         }
     }
 }
