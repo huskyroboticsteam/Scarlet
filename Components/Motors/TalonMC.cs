@@ -1,16 +1,16 @@
-﻿using System;
+using System;
 using Scarlet.Filters;
 using Scarlet.IO;
 using Scarlet.Utilities;
 using System.Threading;
 
-namespace Scarlet.Components.Motors
+namespace Talon
 {
-    public class TalonMC : IMotor
+    public class TalonMC : Scarlet.Components.IMotor
     {
         private IFilter<float> Filter; // Filter for speed output
         private readonly IPWMOutput PWMOut;
-        private readonly float MaxSpeed; 
+        private readonly float MaxSpeed;
 
         private bool OngoingSpeedThread; // Whether or not a thread is running to set the speed
         private bool Stopped; // Whether or not the motor is stopped
@@ -25,8 +25,8 @@ namespace Scarlet.Components.Motors
             this.PWMOut = PWMOut;
             this.MaxSpeed = Math.Abs(MaxSpeed);
             this.Filter = SpeedFilter;
-            this.SetSpeedDirectly(0.0f);
             this.PWMOut.SetFrequency(333);
+            this.SetSpeedDirectly(0.0f);
             this.PWMOut.SetEnabled(true);
         }
 
@@ -49,7 +49,7 @@ namespace Scarlet.Components.Motors
         private void SetSpeedThread()
         {
             float Output = this.Filter.GetOutput();
-            while(!this.Filter.IsSteadyState())
+            while (!this.Filter.IsSteadyState())
             {
                 if (Stopped) { SetSpeedDirectly(0); }
                 else
@@ -94,9 +94,9 @@ namespace Scarlet.Components.Motors
         private void SetSpeedDirectly(float Speed)
         {
             if (Speed > this.MaxSpeed) { Speed = this.MaxSpeed; }
-            if (Speed * -1 > this.MaxSpeed) { Speed = -1 * this.MaxSpeed; }
+            if (-Speed > this.MaxSpeed) { Speed = -this.MaxSpeed; }
             if (this.Stopped) { Speed = 0; }
-            this.PWMOut.SetOutput(Speed / 6.0f + 0.5f);
+            this.PWMOut.SetOutput((Speed + 1.0f) * (0.3333333f) / (2.0f) + 0.3333333f);
         }
     }
 }
