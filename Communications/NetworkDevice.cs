@@ -52,8 +52,18 @@ namespace Scarlet.Communications {
 		//internal packet types
 		private const byte RESPONSE_TYPE = 1, RELIABLE_TYPE = 2, UNRELIABLE_TYPE = 3;
 
+		/// <summary>
+		/// Parses a received message.
+		/// </summary>
+		/// <param name="sendTime">The time the message was sent by the connected IP.</param>
+		/// <param name="data">The message data.</param>
 		public delegate void MessageProcessor(DateTime sendTime, byte[] data);
 
+		/// <summary>
+		/// Registers a message parser.
+		/// </summary>
+		/// <param name="messageID">The message type that this message parser can handle</param>
+		/// <param name="processor">The parser callback (delegate) method</param>
 		public void RegisterMessageParser(MessageTypeID messageID, MessageProcessor processor) {
 			if (handlers.ContainsKey(messageID)) {
 				throw new InvalidOperationException($"Message ID {messageID.ToByte()} is already registered.");
@@ -62,6 +72,9 @@ namespace Scarlet.Communications {
 			}
 		}
 
+		/// <summary>
+		/// Closes the internal socket. Does not notify the connected IP.
+		/// </summary>
 		public void Close() {
 			if (isConnected)
 				throw new InvalidOperationException("already connected");
@@ -105,10 +118,29 @@ namespace Scarlet.Communications {
 				throw new InvalidOperationException("not connected to an endpoint");
 		}
 
+		/// <summary>
+		/// Sends a packet reliably. Attempts to send the packet 10 times
+		/// with 100 milliseconds between each attempt before throwing
+		/// a TimeoutException. Thread-safe.
+		/// </summary>
+		/// <param name="ID">The message type</param>
+		/// <param name="data">The message data</param>
+		/// <exception cref="TimeoutException">Throws TimeoutException if
+		/// a packet is not received after <paramref name="attempts"/> send attempts.</exception>
 		public void SendReliable(MessageTypeID ID, byte[] data) {
 			SendReliable(ID, data, 10, 100);
 		}
 
+		/// <summary>
+		/// Sends a packet reliably. 
+		/// Allows specification of send interval and attempts. Thread-safe.
+		/// </summary>
+		/// <param name="ID">The message type.</param>
+		/// <param name="data">The message data.</param>
+		/// <param name="attempts">The number of send attempts.</param>
+		/// <param name="resendInterval">The time between resends.</param>
+		/// <exception cref="TimeoutException">Throws TimeoutException if
+		/// a packet is not received after <paramref name="attempts"/> send attempts.</exception>
 		public void SendReliable(MessageTypeID ID, byte[] data, int attempts, int resendInterval) {
 			CheckConnected();
 
@@ -145,6 +177,11 @@ namespace Scarlet.Communications {
 			}
 		}
 
+		/// <summary>
+		/// Sends a packet without ensuring it is received. Thread-safe.
+		/// </summary>
+		/// <param name="ID">The message type</param>
+		/// <param name="data">The message data</param>
 		public void SendUnreliable(MessageTypeID ID, byte[] data) {
 			CheckConnected();
 
@@ -158,7 +195,7 @@ namespace Scarlet.Communications {
 			UtilData.ToBytes(DateTime.Now.ToBinary()).CopyTo(packet, 6);
 			data.CopyTo(packet, FULL_HEADER_SIZE);
 			socket.Send(packet, packet.Length);
-
+			//increment the send ID counter
 			Interlocked.Increment(ref nextUnreliableSendID);
 		}
 
@@ -208,6 +245,7 @@ namespace Scarlet.Communications {
 			}
 		}
 
+		//sends reliable message received ack pakcet
 		private void SendResponse(int receivedMessageID) {
 			byte[] packet = new byte[RESPONSE_HEADER_SIZE]; //type(1) and receivedMessageID(4)
 			packet[0] = RESPONSE_TYPE;
