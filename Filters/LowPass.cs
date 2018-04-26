@@ -51,6 +51,7 @@ namespace Scarlet.Filters
             this.LPFk = LPFk;
             this.SteadyStateEpsilon = SteadyStateEpsilon;
             this.Reset();
+            this.Feed(default(T));
         }
 
         /// <summary> Feeds a value into the filter. </summary>
@@ -67,6 +68,7 @@ namespace Scarlet.Filters
             this.Output = (T)_dOutput;
             this.LastValue = Input;
         }
+
         /// <summary> Feeds filter with specified rate. Not used for average filter. </summary>
         /// <param name="Input"> Value to feed into the filer. </param>
         /// <param name="Rate"> Current rate to feed into the filter. </param>
@@ -83,7 +85,7 @@ namespace Scarlet.Filters
         public bool IsSteadyState()
         {
             // System is in steady state if the output of the filter and the input
-            // are within SteadyStateEpsilon of each other.
+            // are within SteadyStateEpsilon of each other
             return Math.Abs((dynamic)LastValue - (dynamic)Output) <= SteadyStateEpsilon;
         }
 

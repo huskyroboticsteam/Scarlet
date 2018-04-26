@@ -46,6 +46,7 @@ namespace Scarlet.Filters
             this.AverageArray = new dynamic[this.FilterCount];
             this.InitializeArray(); // Initialize average array to defaults
             this.NumCyclesAverageSame = 0;
+            this.Feed(default(T));
         }
 
         /// <summary> Feeds a value into the filter. </summary>

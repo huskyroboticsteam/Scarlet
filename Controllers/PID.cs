@@ -33,11 +33,11 @@ namespace Scarlet.Controllers
     {
 
         private Stopwatch StopWatch;                           // Time handled in units of seconds.
-        private double Kp, Ki, Kd;                             // PID Coefficients.
+        public double Kp, Ki, Kd;                              // PID Coefficients.
         private double Target, LastInput, LastTime, LastError; // Necessary PID Information.
         private double P, I, D;                                // Stored values for last P, I, and D terms.
         public double Output { get; private set; }             // Ouptut of the PID Controller.
-        
+
         /// <param name="Kp"> Proportional Coefficient </param>
         /// <param name="Ki"> Integral Coefficient </param>
         /// <param name="Kd"> Derivative Coefficient </param>
