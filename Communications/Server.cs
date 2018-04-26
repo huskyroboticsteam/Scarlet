@@ -49,7 +49,8 @@ namespace Scarlet.Communications
         /// <param name="ReceiveBufferSize"> The size, in bytes, of the receive data buffers. Increase this if your packets are longer than the default. </param>
         /// <param name="OperationPeriod"> The time, in ms, between network operations. If you are sending/receiving a lot of packets, and notice delays, lower this. </param>
         /// <param name="UsePriorityQueue"> If it is ture, packet priority control will be enabled. </param>
-        public static void Start(int PortTCP, int PortUDP, int ReceiveBufferSize = 64, int OperationPeriod = 20, bool UsePriorityQueue = false)
+        public static void Start(int PortTCP = Constants.DEFAULT_SOCKET_PORT, int PortUDP = Constants.DEFAULT_SOCKET_PORT, 
+			int ReceiveBufferSize = 64, int OperationPeriod = 20, bool UsePriorityQueue = false)
         {
             Server.ReceiveBufferSize = ReceiveBufferSize;
             Server.OperationPeriod = OperationPeriod;
@@ -106,8 +107,10 @@ namespace Scarlet.Communications
             Initialized = false;
         }
 
-        /// <summary> Sends signal to all components of Server to stop, then waits for everything to shut down. </summary>
-        public static void Stop()
+		public static bool Running => Initialized && !Stopping;
+
+		/// <summary> Sends signal to all components of Server to stop, then waits for everything to shut down. </summary>
+		public static void Stop()
         {
             if (!Initialized) { return; } // We never even started
             Log.Output(Log.Severity.DEBUG, Log.Source.NETWORK, "Stopping Server.");
@@ -232,7 +235,7 @@ namespace Scarlet.Communications
                 try
                 {
                     int DataSize = Receive.Read(DataBuffer, 0, DataBuffer.Length);
-                    Log.Output(Log.Severity.DEBUG, Log.Source.NETWORK, "Received data from client (TCP).");
+                    //Log.Output(Log.Severity.DEBUG, Log.Source.NETWORK, "Received data from client (TCP).");
                     if (DataSize == 0)
                     {
                         Log.Output(Log.Severity.INFO, Log.Source.NETWORK, "Client has disconnected.");

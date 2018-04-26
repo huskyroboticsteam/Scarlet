@@ -18,6 +18,40 @@
         BYTES = 12,
         MAX = 13,
     }
+	
+	/// <summary>
+	/// Message type for networking packets.
+	/// </summary>
+	public struct MessageTypeID {
+		public static readonly MessageTypeID 
+			TEST_ID = new MessageTypeID(43),
+			CONSOLE_MESSAGE = new MessageTypeID(10),
+			WATCHDOG_PING = new MessageTypeID(240);
+
+		private readonly byte ID; //internal ID
+
+		//public constructor necessary for NetworkDevice wrapping of received byte ID
+		public MessageTypeID(byte ID) {
+			this.ID = ID;
+		}
+
+		public byte ToByte() {
+			return ID;
+		}
+
+		public override bool Equals(object obj) {
+			if (!(obj is MessageTypeID)) {
+				return false;
+			}
+
+			var iD = (MessageTypeID)obj;
+			return ID == iD.ID;
+		}
+
+		public override int GetHashCode() {
+			return ID;
+		}
+	}
 
     /// <summary> Represents the priority of packet, from highest to lowest. </summary>
     public enum PacketPriority
@@ -30,15 +64,16 @@
         LOWEST = 4
     }
 
-    static class Constants
+    public static class Constants
     {
-        #region Communication Defaults
-        public const int WATCHDOG_WAIT = 5000;  // ms
+		#region Communication Defaults
+		public const ushort DEFAULT_SOCKET_PORT = 5232;
+		public const int WATCHDOG_WAIT = 5000;  // ms
         public const int WATCHDOG_INTERVAL = 1000; // ms
-        #endregion
+		#endregion
 
-        #region Reserved Packet IDs
-        public const int WATCHDOG_PING = 0xF0;
+		#region Reserved Packet IDs
+		public const byte WATCHDOG_PING = 0xF0;
         #endregion
 
     }

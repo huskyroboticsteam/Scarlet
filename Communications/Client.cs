@@ -42,9 +42,9 @@ namespace Scarlet.Communications
         private static bool HasDetectedDisconnect; // To be set if there is a send or receive error that would likely be caused by a disconnect.
         private static bool ThreadsStarted; // Whether or not the send/receive/process threads have started
 
-        #endregion
+		#endregion
 
-        public static string Name { get; private set; } // Name of the client.
+		public static string Name { get; private set; } // Name of the client.
         public static bool IsConnected { get; private set; } // Whether or not the client and server are connected
         public static event EventHandler<ConnectionStatusChanged> ClientConnectionChanged; // Invoked when the Client detects a connection change
 
@@ -60,7 +60,13 @@ namespace Scarlet.Communications
         /// <param name="ReceiveBufferSize"> Size of buffer for receving incoming packet. Unit: byte. Increase this if you are receiving larger packets. </param>
         /// <param name="OperationPeriod"> Time to wait after receiving or sending each packet. Unit: ms. Decrease this if the send/receive operations cannot keep up with your data rate. </param>
         /// <param name="UsePriorityQueue"> If it is true, packet priority control will be enabled, and packets will be sent in an order corresponding to their importance. If false, packets are sent in the order that they are provided. </param>
-        public static void Start(string ServerIP, int PortTCP, int PortUDP, string Name, int ReceiveBufferSize = 64, int OperationPeriod = 20, bool UsePriorityQueue = false)
+        public static void Start(string ServerIP, 
+			int PortTCP, 
+			int PortUDP, 
+			string Name, 
+			int ReceiveBufferSize = 64, 
+			int OperationPeriod = 20, 
+			bool UsePriorityQueue = false)
         {
             // Initialize PacketHandler
             PacketHandler.Start();

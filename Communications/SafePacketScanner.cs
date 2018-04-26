@@ -50,10 +50,12 @@ namespace Scarlet.Communications
         /// <returns> Next data. </returns>
         public bool   NextBool()   { AssertType(TypeID.BOOL); return Scanner.NextBool(); }
         public char   NextChar()   { AssertType(TypeID.CHAR); return Scanner.NextChar(); }
-        public double NextDouble() { AssertType(TypeID.DOUBLE); return Scanner.NextDouble(); }
+		public short  NextShort() { AssertType(TypeID.SHORT); return Scanner.NextShort(); }
+		public double NextDouble() { AssertType(TypeID.DOUBLE); return Scanner.NextDouble(); }
         public float  NextFloat()  { AssertType(TypeID.FLOAT); return Scanner.NextFloat(); }
         public int    NextInt()    { AssertType(TypeID.INT); return Scanner.NextInt(); }
-        public byte   NextByte()   { AssertType(TypeID.BYTE); return Scanner.NextByte(); }
+		public long   NextLong() { AssertType(TypeID.LONG); return Scanner.NextLong(); }
+		public byte   NextByte()   { AssertType(TypeID.BYTE); return Scanner.NextByte(); }
 
         public byte[] NextBytes()
         {

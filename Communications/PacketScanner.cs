@@ -33,13 +33,17 @@ namespace Scarlet.Communications
         /// <returns> Next data. </returns>
         public bool NextBool() { return UtilData.ToBool(NextData(sizeof(bool))); }
         
-        /// <summary> Interperate next data block as char. </summary>
+        /// <summary> Interperate next data block as short. </summary>
         /// <returns> Next data. </returns>
         public char NextChar() { return UtilData.ToChar(NextData(sizeof(char))); }
-        
-        /// <summary> Interperate next data block as double. </summary>
-        /// <returns> Next data. </returns>
-        public double NextDouble() { return UtilData.ToDouble(NextData(sizeof(double))); }
+
+		/// <summary> Interperate next data block as char. </summary>
+		/// <returns> Next data. </returns>
+		public short NextShort() { return UtilData.ToShort(NextData(sizeof(short))); }
+
+		/// <summary> Interperate next data block as double. </summary>
+		/// <returns> Next data. </returns>
+		public double NextDouble() { return UtilData.ToDouble(NextData(sizeof(double))); }
         
         /// <summary> Interperate next data block as float. </summary>
         /// <returns> Next data. </returns>
@@ -48,13 +52,17 @@ namespace Scarlet.Communications
         /// <summary> Interperate next data block as int. </summary>
         /// <returns> Next data. </returns>
         public int NextInt() { return UtilData.ToInt(NextData(sizeof(int))); }
-        
-        /// <summary> Interperate data from cursor to the end as string. </summary>
-        /// <returns> Next data. </returns>
-        public string NextString()
-        {
-            if (this.Cursor >= this.Packet.Data.Payload.Length) { throw new InvalidOperationException("Reached the end of packet data"); }
 
+		/// <summary> Interperate next data block as long. </summary>
+		/// <returns> Next data. </returns>
+		public long NextLong() { return UtilData.ToLong(NextData(sizeof(long))); }
+
+
+		/// <summary> Interperate data from cursor to the end as string. </summary>
+		/// <returns> Next data. </returns>
+		public string NextString() {
+            if(this.Cursor >= this.Packet.Data.Payload.Length)
+				throw new InvalidOperationException("Reached the end of packet data");
             string data = UtilData.ToString(this.Packet.Data.GetDataSlice(Cursor));
             this.Cursor = Packet.Data.Payload.Length;
             return data;

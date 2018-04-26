@@ -1,8 +1,6 @@
 ﻿using System;
-using System.Net;
 using Scarlet.Utilities;
 using System.Net.Sockets;
-using System.Linq;
 
 namespace Scarlet.Communications
 {
@@ -24,12 +22,13 @@ namespace Scarlet.Communications
             this.Endpoint = Endpoint;
         }
 
+		private static readonly byte[] EMPTY_DATA = new byte[0];
+
         /// <summary> Meant for sent packets. </summary>
         /// <param name="ID"> The packet ID, determining what action will be taken upon receipt </param>
         /// <param name="IsUDP"> Defines whether or not packet is a UDP message. </param>
         /// <param name="Endpoint"> The destination where this packet will be sent </param>
-
-        public Packet(byte ID, bool IsUDP, string Endpoint = null) : this(new Message(ID, new byte[0]), IsUDP, Endpoint) { }
+        public Packet(byte ID, bool IsUDP, string Endpoint = null) : this(new Message(ID, EMPTY_DATA), IsUDP, Endpoint) { }
         
         /// <summary> Appends data to packet. </summary>
         /// <param name="Data"> Data to append to packet. </param>
