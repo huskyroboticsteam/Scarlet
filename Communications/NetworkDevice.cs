@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Sockets;
@@ -21,7 +22,9 @@ namespace Scarlet.Communications {
 	/// </summary>
 	public class NetworkDevice {
 		private readonly Dictionary<MessageTypeID, MessageProcessor> handlers;
-		private readonly UdpClient socket;
+		private readonly IList<MessageIDHolder> reliableQueue; //holds messages for sending
+		private readonly Socket socket;
+		private volatile IPEndPoint remote;
 		private volatile bool isConnected; //used for checking if connected to an endpoint
 		
 		//ids for keeping track of message sending/receiving state
@@ -30,8 +33,6 @@ namespace Scarlet.Communications {
 					nextReliableSendID = STARTING_SEND_ID,
 					nextUnreliableReceiveID = STARTING_SEND_ID,
 					nextReliableReceiveID = STARTING_SEND_ID;
-
-		private readonly IList<MessageIDHolder> reliableSendQueue; //holds messages for sending
 
 		//used for reliable message sending
 		private sealed class MessageIDHolder {
@@ -44,13 +45,79 @@ namespace Scarlet.Communications {
 		}
 
 		//packet header sizes
-		private const int FULL_HEADER_SIZE = 14, RESPONSE_HEADER_SIZE = 5;
+		private const int FULL_HEADER_SIZE = 14, RESPONSE_HEADER_SIZE = 5, CONNECT_HEADER_SIZE = 2;
+
+		private const int MAX_MESSAGE_SIZE = 60, MAX_PACKET_SIZE = MAX_MESSAGE_SIZE + FULL_HEADER_SIZE;
 		
 		//initial messageID sent/received during connection
 		private const int STARTING_SEND_ID = 0;
 
 		//internal packet types
-		private const byte RESPONSE_TYPE = 1, RELIABLE_TYPE = 2, UNRELIABLE_TYPE = 3;
+		private const byte CONNECT_TYPE = 0, RESPONSE_TYPE = 1, RELIABLE_TYPE = 2, UNRELIABLE_TYPE = 3;
+
+		/// <summary>
+		/// Creates a NetworkDevice andb blocks until it connects to a remote IP address or times out.
+		/// </summary>
+		/// <param name="bind">The local address of the network interface.</param>
+		/// <param name="remote">The address to connect to.</param>
+		/// <param name="processors">An optional dictionary of message parsers 
+		/// to register before starting the NetworkDevice.</param>
+		/// <returns>The connected and running NetworkDevice.</returns>
+		/// <exception cref="ConnectionFailException">Throws ConnectFailException 
+		/// if the the NetworkDevice could not connect to the specified remote IP.</exception>
+		public static NetworkDevice Start(IPEndPoint bind, IPEndPoint remote, IDictionary<MessageTypeID, MessageProcessor> processors = null) {
+			return new NetworkDevice(bind, remote, processors);
+		}
+
+		/// <summary>
+		/// Creates an unconnected NetworkDevice that will connect to the first IP
+		/// address a message is received from.
+		/// </summary>
+		/// <param name="bind">The local address of the network interface.</param>
+		/// <param name="processors">An optional dictionary of message parsers 
+		/// to register before starting the NetworkDevice.</param>
+		/// <returns>The running NetworkDevice.</returns>
+		public static NetworkDevice Start(IPEndPoint bind, IDictionary<MessageTypeID, MessageProcessor> processors = null) {
+			return new NetworkDevice(bind, null, processors);
+		}
+		
+		//internal constructor
+		private NetworkDevice(IPEndPoint bind, IPEndPoint remote, IDictionary<MessageTypeID, MessageProcessor> processors) {
+			if (remote != null && bind.AddressFamily != remote.AddressFamily) {
+				throw new InvalidOperationException("bind and remote addresses must use the same protocol");
+			}
+
+			handlers = processors == null ? 
+				new Dictionary<MessageTypeID, MessageProcessor>() : 
+				new Dictionary<MessageTypeID, MessageProcessor>(processors);
+			reliableQueue = new List<MessageIDHolder>();
+			socket = new Socket(bind.Address.AddressFamily, SocketType.Dgram, ProtocolType.Udp);
+			socket.Bind(bind);
+			new Thread(RunReceive).Start();
+			if (remote != null && !Connect(remote, 10, 100)) {
+				socket.Shutdown(SocketShutdown.Both);
+				throw new ConnectionFailException();
+			}
+		}
+
+		public sealed class ConnectionFailException : Exception { }
+
+		private bool Connect(IPEndPoint remote, int attempts, int resendInterval) {
+			this.remote = remote;
+			for(int attemptsRemaining = attempts; 
+				attemptsRemaining > 0 && !isConnected && remote != null; 
+				attemptsRemaining--) {
+				SendConnect(remote, true);
+				lock(socket) {
+					Monitor.Wait(socket, resendInterval);
+				}
+			}
+			return isConnected;
+		}
+
+		private void SendConnect(IPEndPoint remote, bool query) {
+			socket.SendTo(new byte[] { CONNECT_TYPE, (byte)(query ? 1 : 0)}, remote);
+		}
 
 		/// <summary>
 		/// Parses a received message.
@@ -60,7 +127,8 @@ namespace Scarlet.Communications {
 		public delegate void MessageProcessor(DateTime sendTime, byte[] data);
 
 		/// <summary>
-		/// Registers a message parser.
+		/// Registers a MessageProcessor with the NetworkDevice.
+		/// When a message is received, message receiving will block until the processor returns.
 		/// </summary>
 		/// <param name="messageID">The message type that this message parser can handle</param>
 		/// <param name="processor">The parser callback (delegate) method</param>
@@ -76,46 +144,22 @@ namespace Scarlet.Communications {
 		/// Closes the internal socket. Does not notify the connected IP.
 		/// </summary>
 		public void Close() {
-			if (isConnected)
-				throw new InvalidOperationException("already connected");
-			socket.Close();
-		}
-
-		/// <summary>
-		/// Creates a NetworkDevice and connects to a remote IP address.
-		/// </summary>
-		/// <param name="bind">The local address of the network interface.</param>
-		/// <param name="remote">The address to connect to.</param>
-		/// <returns>The connected and running NetworkDevice.</returns>
-		public static NetworkDevice Start(IPEndPoint bind, IPEndPoint remote) {
-			return new NetworkDevice(bind, remote);
-		}
-
-		/// <summary>
-		/// Creates an unconnected NetworkDevice that will connect to the first IP
-		/// address a message is received from.
-		/// </summary>
-		/// <param name="bind">The local address of the network interface.</param>
-		/// <returns>The running NetworkDevice.</returns>
-		public static NetworkDevice Start(IPEndPoint bind) {
-			return new NetworkDevice(bind);
-		}
-
-		//internal constructor
-		private NetworkDevice(IPEndPoint bind, IPEndPoint remote = null) {
-			handlers = new Dictionary<MessageTypeID, MessageProcessor>();
-			reliableSendQueue = new List<MessageIDHolder>();
-			socket = new UdpClient(bind);
-			if(remote != null) {
-				socket.Connect(remote);
-				isConnected = true;
-			}
-			StartReceiveThread();
+			isConnected = false;
+			socket.Shutdown(SocketShutdown.Both);
 		}
 
 		private void CheckConnected() {
-			if(!isConnected)
+			if(!isConnected) {
 				throw new InvalidOperationException("not connected to an endpoint");
+			}
+		}
+
+		private void CheckMessageSize(byte[] message) {
+			if(message.Length > MAX_MESSAGE_SIZE) {
+				throw new InvalidOperationException(
+					$"message {message.Length - MAX_MESSAGE_SIZE} " +
+					$"bytes too large. {MAX_MESSAGE_SIZE} maximum allowed.");
+			}
 		}
 
 		/// <summary>
@@ -143,6 +187,7 @@ namespace Scarlet.Communications {
 		/// a packet is not received after <paramref name="attempts"/> send attempts.</exception>
 		public void SendReliable(MessageTypeID ID, byte[] data, int attempts, int resendInterval) {
 			CheckConnected();
+			CheckMessageSize(data);
 
 			//packet format:
 			//type(1), messageID(4), id(1), time(8), data(remaining bytes)
@@ -159,21 +204,22 @@ namespace Scarlet.Communications {
 			Interlocked.Increment(ref nextReliableSendID);
 
 			lock (holder) {
-				lock (reliableSendQueue) { reliableSendQueue.Add(holder); }
+				lock (reliableQueue) { reliableQueue.Add(holder); }
 				int attemptsRemaining = attempts;
 				while (attemptsRemaining > 0 && !holder.received && isConnected) {
-					socket.Send(packet, packet.Length);
+					socket.SendTo(packet, remote);
 					attemptsRemaining--;
 					//wait for ack to be received by network controller receiver
 					Monitor.Wait(holder, resendInterval);
 				}
 
-				lock (reliableSendQueue) {
-					reliableSendQueue.Remove(holder);
+				lock (reliableQueue) {
+					reliableQueue.Remove(holder);
 				}
 
-				if (!holder.received)
+				if (!holder.received) {
 					throw new TimeoutException();
+				}
 			}
 		}
 
@@ -184,6 +230,7 @@ namespace Scarlet.Communications {
 		/// <param name="data">The message data</param>
 		public void SendUnreliable(MessageTypeID ID, byte[] data) {
 			CheckConnected();
+			CheckMessageSize(data);
 
 			//packet format:
 			//type(1), messageID(4), id(1), time(8), data(remaining bytes)
@@ -194,51 +241,22 @@ namespace Scarlet.Communications {
 			packet[5] = ID.ToByte();
 			UtilData.ToBytes(DateTime.Now.ToBinary()).CopyTo(packet, 6);
 			data.CopyTo(packet, FULL_HEADER_SIZE);
-			socket.Send(packet, packet.Length);
+			socket.SendTo(packet, remote);
 			//increment the send ID counter
 			Interlocked.Increment(ref nextUnreliableSendID);
 		}
 
-		private void StartReceiveThread() {
-			new Thread(() => {
-				while(true) {
-					try {
-						//receive packet
-						IPEndPoint sender = null;
-						byte[] data = socket.Receive(ref sender);
-
-						//connect to the remote IP a message is received from
-						if(!isConnected) {
-							socket.Connect(sender);
-							isConnected = true;
-						}
-						
-						//deserialize data and process
-						byte type = data[0];
-						int messageID = UtilData.ToInt(data, 1);
-						ProcessPacket(data, type, messageID);
-					} catch(SocketException e) {
-						if(e.SocketErrorCode == SocketError.Shutdown) {
-							break;
-						} else {
-							Log.Output(Log.Severity.ERROR, Log.Source.NETWORK,
-								$"Socket Error {e.SocketErrorCode.ToString()}");
-						}
-					}
-				}
-			}).Start();
-		}
-
 		//create a new byte array only containing message data, no header info
-		private byte[] GetMessageData(byte[] packet) {
-			byte[] message = new byte[packet.Length - FULL_HEADER_SIZE];
-			Array.Copy(packet, FULL_HEADER_SIZE, message, 0, packet.Length - FULL_HEADER_SIZE);
+		private byte[] GetMessageData(byte[] packet, int packetLength) {
+			int messageLength = packetLength - FULL_HEADER_SIZE;
+			byte[] message = new byte[messageLength];
+			Array.Copy(packet, FULL_HEADER_SIZE, message, 0, messageLength);
 			return message;
 		}
 
 		//run message parser callback
 		private void HandleMessage(MessageTypeID ID, DateTime time, byte[] message) {
-			if(handlers.ContainsKey(ID)) {
+			if (handlers.ContainsKey(ID)) {
 				handlers[ID].Invoke(time, message);
 			} else {
 				throw new InvalidOperationException($"No message handler for ID {ID}");
@@ -250,47 +268,108 @@ namespace Scarlet.Communications {
 			byte[] packet = new byte[RESPONSE_HEADER_SIZE]; //type(1) and receivedMessageID(4)
 			packet[0] = RESPONSE_TYPE;
 			UtilData.ToBytes(receivedMessageID).CopyTo(packet, 1);
-			socket.Send(packet, packet.Length);
+			socket.SendTo(packet, remote);
 		}
 
-		private void ProcessPacket(byte[] packet, byte type, int messageID) {
+		//can be started on a thread to constantly receive and process messages
+		private void RunReceive() {
+			byte[] buffer = new byte[MAX_PACKET_SIZE];
+
+			//this is literally the dumbest thing, 
+			//I have to provide a placeholder address to ReceiveFrom for no apparent reason
+			EndPoint placeholder = new IPEndPoint(
+				socket.AddressFamily == AddressFamily.InterNetwork ? 
+				IPAddress.None : IPAddress.IPv6None, 0);
+
+			while (true) {
+				try {
+					//receive packet
+					EndPoint sender = placeholder;
+					int length = socket.ReceiveFrom(buffer, ref sender);
+					//deserialize data and process
+					ProcessPacket(buffer, length, (IPEndPoint)sender);
+				} catch (SocketException e) {
+					if (e.SocketErrorCode == SocketError.Shutdown) {
+						remote = null;
+						break;
+					} else {
+						Log.Output(Log.Severity.ERROR, Log.Source.NETWORK,
+							$"Socket Error {e.SocketErrorCode.ToString()}: {e.Message}");
+					}
+				}
+			}
+		}
+
+		private void ProcessPacket(byte[] packet, int length, IPEndPoint sender) {
+			byte type = packet[0];
+
 			switch(type) {
-				case RESPONSE_TYPE: //on receiving an acknowledgement of a remote received reliably sent packet
-					lock(reliableSendQueue) {
-						for(int i = 0; i < reliableSendQueue.Count; i++) {
-							MessageIDHolder holder = reliableSendQueue[i]; //holder is removed by send method
-							if (holder.messageID == messageID) {
-								lock (holder) {
-									//notify the SendReliable call that the message was received
-									holder.received = true;
-									Monitor.PulseAll(holder);
-								}
-								break;
+				case CONNECT_TYPE: {
+						bool isQuery = packet[1] == 1 ? true : false;
+						if (isQuery) {
+							if (remote == null) {
+								remote = sender;
+								isConnected = true;
+								SendConnect(sender, false); //send ack
+							} else if (sender.Equals(remote)) {
+								SendConnect(sender, false); //send ack
+							}
+						} else if(!isConnected && remote != null && sender.Equals(remote)) {
+							isConnected = true;
+							lock (socket) {
+								Monitor.PulseAll(socket);
 							}
 						}
-					} break;
-				case RELIABLE_TYPE: //on receiving a packet of reliably sent data
-					if (messageID == nextReliableReceiveID) {
-						//if the message is the next one, process it and update last message
-						SendResponse(messageID);
-						//doesnt need sync, only used by receive thread
-						nextReliableReceiveID++;
-						//deserialize the packet and send it to the parser
-						MessageTypeID ID = new MessageTypeID(packet[5]);
-						DateTime time = DateTime.FromBinary(UtilData.ToLong(packet, 6));
-						HandleMessage(ID, time, GetMessageData(packet));
-					} else if(messageID < nextReliableReceiveID) { //message already received
-						SendResponse(messageID);
-					} break; //else: message received too early
-				case UNRELIABLE_TYPE: //on receiving a packet of unreliably sent data
-					if (messageID >= nextUnreliableReceiveID) {
-						//doesnt need sync, only used by receive thread
-						nextUnreliableReceiveID++;
-						//deserialize the packet and send it to the parser
-						MessageTypeID ID = new MessageTypeID(packet[5]);
-						DateTime time = DateTime.FromBinary(UtilData.ToLong(packet, 6));
-						HandleMessage(ID, time, GetMessageData(packet));
-					} break; //else: message is outdated
+						break;
+					}
+				//on receiving an acknowledgement of a remote received reliably sent packet
+				case RESPONSE_TYPE: {
+						int messageID = UtilData.ToInt(packet, 1);
+						lock (reliableQueue) {
+							for (int i = 0; i < reliableQueue.Count; i++) {
+								MessageIDHolder holder = reliableQueue[i]; //holder is removed by send method
+								if (holder.messageID == messageID) {
+									lock (holder) {
+										//notify the SendReliable call that the message was received
+										holder.received = true;
+										Monitor.PulseAll(holder);
+									}
+									break;
+								}
+							}
+						}
+						break;
+					}
+				//on receiving a packet of reliably sent data
+				case RELIABLE_TYPE: {
+						int messageID = UtilData.ToInt(packet, 1);
+						if (messageID == nextReliableReceiveID) {
+							//if the message is the next one, process it and update last message
+							SendResponse(messageID);
+							//doesnt need sync, only used by receive thread
+							nextReliableReceiveID++;
+							//deserialize the packet and send it to the parser
+							MessageTypeID ID = new MessageTypeID(packet[5]);
+							DateTime time = DateTime.FromBinary(UtilData.ToLong(packet, 6));
+							HandleMessage(ID, time, GetMessageData(packet, length));
+						} else if (messageID < nextReliableReceiveID) { //message already received
+							SendResponse(messageID);
+						}
+						break; //else: message received too early
+					}
+				//on receiving a packet of unreliably sent data
+				case UNRELIABLE_TYPE: {
+						int messageID = UtilData.ToInt(packet, 1);
+						if (messageID >= nextUnreliableReceiveID) {
+							//doesnt need sync, only used by receive thread
+							nextUnreliableReceiveID++;
+							//deserialize the packet and send it to the parser
+							MessageTypeID ID = new MessageTypeID(packet[5]);
+							DateTime time = DateTime.FromBinary(UtilData.ToLong(packet, 6));
+							HandleMessage(ID, time, GetMessageData(packet, length));
+						}
+						break; //else: message is outdated
+					}
 			}
 		}
 	}
