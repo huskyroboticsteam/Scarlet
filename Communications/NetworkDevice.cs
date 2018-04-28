@@ -49,7 +49,13 @@ namespace Scarlet.Communications {
 		//packet header sizes
 		private const int FULL_HEADER_SIZE = 14, RESPONSE_HEADER_SIZE = 5, CONNECT_HEADER_SIZE = 2;
 
-		private const int MAX_MESSAGE_SIZE = 60, MAX_PACKET_SIZE = MAX_MESSAGE_SIZE + FULL_HEADER_SIZE;
+		/// <summary>
+		/// The maximum size in bytes that a message passed to 
+		/// SendReliable or SendUnreliable can be.
+		/// </summary>
+		public const int MAX_MESSAGE_SIZE = 60;
+
+		private const int MAX_PACKET_SIZE = MAX_MESSAGE_SIZE + FULL_HEADER_SIZE;
 		
 		//initial messageID sent/received during connection
 		private const int STARTING_SEND_ID = 0;
@@ -148,8 +154,9 @@ namespace Scarlet.Communications {
 		/// Closes the internal socket. Does not notify the connected IP.
 		/// </summary>
 		public void Close() {
+			socket.Close();
 			isConnected = false;
-			socket.Shutdown(SocketShutdown.Both);
+			remote = null;
 		}
 
 		private void CheckConnected() {
@@ -297,8 +304,7 @@ namespace Scarlet.Communications {
 					//deserialize data and process
 					ProcessPacket(buffer, length, (IPEndPoint)sender);
 				} catch (SocketException e) {
-					if (e.SocketErrorCode == SocketError.Shutdown) {
-						remote = null;
+					if (e.SocketErrorCode == SocketError.Interrupted) {
 						break;
 					} else {
 						Log.Output(Log.Severity.ERROR, Log.Source.NETWORK,
