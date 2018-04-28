@@ -63,6 +63,7 @@
     <Compile Include="IOBBB.cs" />
     <Compile Include="IOPi.cs" />
     <Compile Include="Main.cs" />
+    <Compile Include="NetworkDeviceTest.cs" />
     <Compile Include="Performance.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Utils.cs" />

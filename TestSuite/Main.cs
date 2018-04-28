@@ -1,7 +1,5 @@
 ﻿using Scarlet.Utilities;
 using System;
-using Scarlet.Communications;
-using System.Net;
 
 namespace Scarlet.TestSuite
 {
@@ -9,53 +7,30 @@ namespace Scarlet.TestSuite
     {
         public static void Main(string[] args)
         {
-			TestNetworking();
-			Run(args);
-			Console.ReadKey();
-		}
-
-		public static void TestNetworking() {
-
-			NetworkDevice server = NetworkDevice.Start(
-				new IPEndPoint(IPAddress.Loopback, 4343)
-			);
-
-			NetworkDevice client = NetworkDevice.Start(
-				new IPEndPoint(IPAddress.Loopback, 20020),
-				new IPEndPoint(IPAddress.Loopback, 4343)
-			);
-
-			server.RegisterMessageParser(MessageTypeID.TEST_ID, (time, data) => {
-				Console.WriteLine($"Received {data.Length} bytes at {time} of type 43: {UtilData.ToString(data)}");
-			});
-
-			//will spam random decimal values and log to the console
-			for (int i = 0; i < 10; i++) {
-				client.SendReliable(MessageTypeID.TEST_ID,
-					UtilData.ToBytes(new Random().NextDouble().ToString().Substring(3, (int)(new Random().NextDouble() * 10))));
-				System.Threading.Thread.Sleep(100);
-			}
-		}
-
-		public static void Run(string[] args) {
 			Log.ForceOutput(Log.Severity.INFO, Log.Source.GUI, "Starting Scarlet test suite...");
-			if (args == null || args.Length == 0 || args[0].Equals("help", StringComparison.InvariantCultureIgnoreCase)) { OutputHelp(); }
+			if (args == null || args.Length == 0 || CheckArg(args, 0, "help")) { OutputHelp(); }
 
 			StateStore.Start("ScarletTest");
 
 			if (args.Length < 1) { ErrorExit("Must provide system to test."); }
-			if (args[0].Equals("io", StringComparison.InvariantCultureIgnoreCase)) {
+			if (CheckArg(args, 0, "io")) {
 				if (args.Length < 2) { ErrorExit("io command requires platform."); }
-				if (args[1].Equals("bbb", StringComparison.InvariantCultureIgnoreCase)) {
+				if (CheckArg(args, 1, "bbb")) {
 					IOBBB.Start(args);
-				} else if (args[1].Equals("pi", StringComparison.InvariantCultureIgnoreCase)) {
+				} else if (CheckArg(args, 1, "pi")) {
 					IOPi.Start(args);
 				} else { Log.Output(Log.Severity.ERROR, Log.Source.GUI, "io command must be for pi or bbb."); }
-			} else if (args[0].Equals("perf", StringComparison.InvariantCultureIgnoreCase)) {
+			} else if (CheckArg(args, 0, "perf")) {
 				Performance.Start(args);
-			} else if (args[0].Equals("utils", StringComparison.InvariantCultureIgnoreCase)) {
+			} else if (CheckArg(args, 0, "util")) {
 				Utils.Start(args);
+			} else if (CheckArg(args, 0, "net")) {
+				NetworkDeviceTest.Start(args);
 			}
+		}
+
+		private static bool CheckArg(string[] args, int argIndex, string value) {
+			return args[argIndex].Equals(value, StringComparison.InvariantCultureIgnoreCase);
 		}
 
         public static void ErrorExit(string error)
