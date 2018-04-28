@@ -133,10 +133,12 @@ namespace Scarlet.Communications {
 		/// <param name="messageID">The message type that this message parser can handle</param>
 		/// <param name="processor">The parser callback (delegate) method</param>
 		public void RegisterMessageParser(MessageTypeID messageID, MessageProcessor processor) {
-			if (handlers.ContainsKey(messageID)) {
-				throw new InvalidOperationException($"Message ID {messageID.ToByte()} is already registered.");
-			} else {
-				handlers.Add(messageID, processor);
+			lock(handlers) {
+				if (handlers.ContainsKey(messageID)) {
+					throw new InvalidOperationException($"Message ID {messageID.ToByte()} is already registered.");
+				} else {
+					handlers.Add(messageID, processor);
+				}
 			}
 		}
 
@@ -256,11 +258,15 @@ namespace Scarlet.Communications {
 
 		//run message parser callback
 		private void HandleMessage(MessageTypeID ID, DateTime time, byte[] message) {
-			if (handlers.ContainsKey(ID)) {
-				handlers[ID].Invoke(time, message);
-			} else {
-				throw new InvalidOperationException($"No message handler for ID {ID}");
+			MessageProcessor processor;
+			lock(handlers) {
+				if(handlers.ContainsKey(ID)) {
+					processor = handlers[ID];
+				} else {
+					throw new InvalidOperationException($"No message handler for ID {ID}");
+				}
 			}
+			processor.Invoke(time, message);
 		}
 
 		//sends reliable message received ack pakcet
