@@ -11,7 +11,9 @@ namespace Scarlet.Communications {
 	/// <summary>
 	/// <para>A NetworkDevice allows you to send and receive "messages" reliably and unreliable
 	/// to and from a single remote IP address. Received messages are handled by registered
-	/// delete methods for IDs, registered through the RegisterMessageParser method.</para>
+	/// delegate methods for IDs, registered through the RegisterMessageParser method. Any
+	/// unreliable messages received out of order will be dropped. NetworkDevice instances
+	/// are not reusable once closed.</para>
 	/// 
 	/// <para>Usage: Call NetworkDevice.Start(...) with one argument to start an 'unconnected' device
 	/// or with two arguments to connect to an unconnected NetworkDevice.
