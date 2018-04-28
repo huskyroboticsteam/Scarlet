@@ -12,25 +12,26 @@ namespace Scarlet.TestSuite {
 			NetworkDevice baseStation = NetworkDevice.Start(baseAddress, roverAddress);
 
 			baseStation.RegisterMessageParser(MessageTypeID.TEST_ID, (time, data) => {
-				Console.WriteLine($"Received {data.Length} bytes at {time} of type 43: {UtilData.ToString(data)}");
+				Console.WriteLine($"Received {data.Length} bytes at {time}: {UtilData.ToString(data).Replace('\n', '\0')}");
 			});
 
 			//will spam random decimal values and log to the console
+			Random rand = new Random();
 			for (int i = 0; i < 10; i++) {
-				byte[] data = GenerateData();
+				byte[] data = GenerateData(rand);
 				Console.WriteLine($"Sending {UtilData.ToString(data)}");
 				rover.SendReliable(MessageTypeID.TEST_ID, data);
-				System.Threading.Thread.Sleep(200);
 			}
 
 			Console.WriteLine("Closing NetworkDevices");
 			rover.Close();
 			baseStation.Close();
+			baseStation.Close();
+			Console.WriteLine("NetworkDevices closed");
 		}
 
-		private static byte[] GenerateData() {
-			byte[] data = new byte[(int)(new Random().NextDouble() * 60)];
-			Random rand = new Random();
+		private static byte[] GenerateData(Random rand) {
+			byte[] data = new byte[(int)(rand.NextDouble() * 60)];
 			for(int i = 0; i < data.Length / 4; i += 4) {
 				BitConverter.GetBytes(rand.Next()).CopyTo(data, i);
 			}

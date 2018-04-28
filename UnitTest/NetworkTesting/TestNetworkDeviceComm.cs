@@ -36,8 +36,10 @@ namespace UnitTest.NetworkTesting {
 		public void TestReliableNetworkSendReceive() {
 			byte[][] testData = new byte[10][];
 
+
+			Random rand = new Random();
 			for (int i = 0; i < testData.Length; i++) {
-				testData[i] = GenerateData();
+				testData[i] = GenerateData(rand);
 			}
 
 			int current = 0;
@@ -62,9 +64,8 @@ namespace UnitTest.NetworkTesting {
 			baseStation.Close();
 		}
 
-		private static byte[] GenerateData() {
-			byte[] data = new byte[(int)(new Random().NextDouble() * 60)];
-			Random rand = new Random();
+		private static byte[] GenerateData(Random rand) {
+			byte[] data = new byte[(int)(rand.NextDouble() * 60)];
 			for (int i = 0; i < data.Length / 4; i += 4) {
 				BitConverter.GetBytes(rand.Next()).CopyTo(data, i);
 			}
