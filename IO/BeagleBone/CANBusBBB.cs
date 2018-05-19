@@ -8,6 +8,11 @@ namespace Scarlet.IO.BeagleBone
 		public static CANBusBBB CANBus0 { get; private set; }
 		public static CANBusBBB CANBus1 { get; private set; }
 
+		static CANBBB()
+		{
+			Initialize(new bool[] { true, false });
+		}
+
 		/// <summary> Prepares the given CAN buses for use. Should only be called from BeagleBone.Initialize(). </summary>
 		static internal void Initialize(bool[] EnableBuses)
 		{
