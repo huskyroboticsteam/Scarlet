@@ -211,6 +211,25 @@ namespace Scarlet.IO.BeagleBone
 			return Dlc2Len[CanDLC & 0x0F];
 		}
 
+		private byte LenToDLC(byte CanLen)
+		{
+			byte[] Len2DLC =
+			{
+				0, 1, 2, 3, 4, 5, 6, 7, 8,       /* 0 - 8 */
+                    9, 9, 9, 9,             /* 9 - 12 */
+                    10, 10, 10, 10,             /* 13 - 16 */
+                    11, 11, 11, 11,             /* 17 - 20 */
+                    12, 12, 12, 12,             /* 21 - 24 */
+                    13, 13, 13, 13, 13, 13, 13, 13,     /* 25 - 32 */
+                    14, 14, 14, 14, 14, 14, 14, 14,     /* 33 - 40 */
+                    14, 14, 14, 14, 14, 14, 14, 14,     /* 41 - 48 */
+                    15, 15, 15, 15, 15, 15, 15, 15,     /* 49 - 56 */
+				15, 15, 15, 15, 15, 15, 15, 15 /* 57 - 64 */
+			};
+			if (CanLen > 64) { return 0xF; }
+			return Len2DLC[CanLen];
+		}
+
 		/// <summary>
 		/// Write a payload with specified ID.
 		/// </summary>
@@ -227,7 +246,7 @@ namespace Scarlet.IO.BeagleBone
 				{
 					ExtendedCANFrame Frame = new ExtendedCANFrame();
 					Frame.CANID = ID;
-					Frame.DataLength = DLCToLen(DLCToLen((byte)Data.Length));
+					Frame.DataLength = DLCToLen(LenToDLC((byte)Data.Length));
 					for (int i = 0; i < Data.Length; i++) { Frame.Data[i] = Data[i]; }
 					BytesWritten = write(Socket, ref Frame, Marshal.SizeOf(Frame));
 				}
@@ -235,7 +254,7 @@ namespace Scarlet.IO.BeagleBone
 				{
 					CANFrame Frame = new CANFrame();
 					Frame.CANID = ID;
-					Frame.DataLength = DLCToLen(DLCToLen((byte)Data.Length));
+					Frame.DataLength = DLCToLen(LenToDLC((byte)Data.Length));
 					for (int i = 0; i < Data.Length; i++) { Frame.Data[i] = Data[i]; }
 					BytesWritten = write(Socket, ref Frame, Marshal.SizeOf(Frame));
 				}
