@@ -8,17 +8,12 @@ namespace Scarlet.IO.BeagleBone
 		public static CANBusBBB CANBus0 { get; private set; }
 		public static CANBusBBB CANBus1 { get; private set; }
 
-		static CANBBB()
-		{
-			Initialize(new bool[] { true, false });
-		}
-
 		/// <summary> Prepares the given CAN buses for use. Should only be called from BeagleBone.Initialize(). </summary>
-		static internal void Initialize(bool[] EnableBuses)
+		static internal void Initialize(bool[] EnableBuses, bool[] Extended)
 		{
 			if (EnableBuses == null || EnableBuses.Length != 2) { throw new Exception("Invalid enable array given to CANBBB.Initialize."); }
-			if (EnableBuses[0]) { CANBus0 = new CANBusBBB("can0", true); }
-			if (EnableBuses[1]) { CANBus1 = new CANBusBBB("can1", true); }
+			if (EnableBuses[0]) { CANBus0 = new CANBusBBB("can0", Extended[0]); }
+			if (EnableBuses[1]) { CANBus1 = new CANBusBBB("can1", Extended[1]); }
 		}
 
 		/// <summary> Converts a pin number to the corresponding CAN bus ID. 255 if invalid. </summary>
