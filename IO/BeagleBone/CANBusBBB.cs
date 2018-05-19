@@ -134,19 +134,25 @@ namespace Scarlet.IO.BeagleBone
 		[DllImport("libc", SetLastError = true)]
 		private static extern int close(int FileDescriptor);
 
+		[DllImport("libc", SetLastError = true)]
+		private static extern int setsockopt(int FileDescriptor, int Level, int Optname, ref int EnableCanFD, int Size);
+
 		private const int AF_CAN = 29;
 		private const int PF_CAN = AF_CAN;
 		private const int SOCK_RAW = 3;
 		private const int CAN_RAW = 1;
 		private const int CAN_RAW_FD_FRAMES = 5;
 		private const uint SIOCGIFINDEX = 0x8933;
+		private const int SOL_CAN_BASE = 100;
+		private const int SOL_CAN_RAW = SOL_CAN_BASE + CAN_RAW;
+
 		private int Socket;
 		private bool Extended;
 
 		internal CANBusBBB(string CanName, bool Extended)
 		{
 			this.Extended = Extended;
-			this.Socket = socket(PF_CAN, SOCK_RAW, Extended ? CAN_RAW_FD_FRAMES : CAN_RAW);
+			this.Socket = socket(PF_CAN, SOCK_RAW, CAN_RAW);
 			if (this.Socket < 0) { throw new Exception("Error while opening socket. Error code: " + Marshal.GetLastWin32Error()); }
 
 			unsafe
@@ -159,6 +165,8 @@ namespace Scarlet.IO.BeagleBone
 				Addr.CanFamily = AF_CAN;
 				Addr.CanIfIndex = Req.IfIndex;
 				if (bind(Socket, ref Addr, Marshal.SizeOf(Addr)) < 0) { throw new Exception("Error while binding socket. Error code: " + Marshal.GetLastWin32Error()); };
+				int ExtendedCAN = Extended ? 1 : 0;
+				if (setsockopt(Socket, SOL_CAN_RAW, CAN_RAW_FD_FRAMES, ref ExtendedCAN, Marshal.SizeOf(ExtendedCAN)) != 0) { throw new Exception("Failed to enable Extended CAN. Error code: " + Marshal.GetLastWin32Error()); }
 			}
 		}
 
@@ -192,6 +200,12 @@ namespace Scarlet.IO.BeagleBone
 			}
 		}
 
+		private byte DLCToLen(byte CanDLC)
+		{
+			byte[] Dlc2Len = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 12, 16, 20, 24, 32, 48, 64 };
+			return Dlc2Len[CanDLC & 0x0F];
+		}
+
 		/// <summary>
 		/// Write a payload with specified ID.
 		/// </summary>
@@ -201,25 +215,27 @@ namespace Scarlet.IO.BeagleBone
 		{
 			if (!Extended && Data.Length > 8) { throw new Exception("CAN Data Length must be no more than 8 bytes for non-Extended frames"); }
 			else if (Data.Length > 64) { throw new Exception("CAN Data Length must be no more than 64 bytes for Extended frames."); }
+			int BytesWritten;
 			unsafe
 			{
 				if (Extended)
 				{
 					ExtendedCANFrame Frame = new ExtendedCANFrame();
 					Frame.CANID = ID;
-					Frame.DataLength = (byte)Data.Length;
+					Frame.DataLength = DLCToLen(DLCToLen((byte)Data.Length));
 					for (int i = 0; i < Data.Length; i++) { Frame.Data[i] = Data[i]; }
-					write(Socket, ref Frame, Marshal.SizeOf(Frame));
+					BytesWritten = write(Socket, ref Frame, Marshal.SizeOf(Frame));
 				}
 				else
 				{
 					CANFrame Frame = new CANFrame();
 					Frame.CANID = ID;
-					Frame.DataLength = (byte)Data.Length;
+					Frame.DataLength = DLCToLen(DLCToLen((byte)Data.Length));
 					for (int i = 0; i < Data.Length; i++) { Frame.Data[i] = Data[i]; }
-					write(Socket, ref Frame, Marshal.SizeOf(Frame));
+					BytesWritten = write(Socket, ref Frame, Marshal.SizeOf(Frame));
 				}
 			}
+			if (BytesWritten < 0) { throw new Exception("Failed to write CAN frame. Error code: " + Marshal.GetLastWin32Error()); }
 		}
 
 		/// <summary> Cleans up the bus object, freeing resources. </summary> 
