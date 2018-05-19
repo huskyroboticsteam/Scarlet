@@ -70,8 +70,5 @@ namespace Scarlet.Components.Sensors
             if (RawReading < 2.2) { return (float)((0.2632 * RawReading) - 0.0789); }
             return (float)((0.625 * RawReading) - 0.875);
         }
-
-        /// <summary> Does nothing. </summary>
-        public void EventTriggered(object Sender, EventArgs Event) { }
     }
 }
