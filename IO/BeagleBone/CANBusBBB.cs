@@ -150,6 +150,7 @@ namespace Scarlet.IO.BeagleBone
 		private const uint SIOCGIFINDEX = 0x8933;
 		private const int SOL_CAN_BASE = 100;
 		private const int SOL_CAN_RAW = SOL_CAN_BASE + CAN_RAW;
+		private const uint CAN_EFF_FLAG = 0x80000000;
 
 		private int Socket;
 		private bool Extended;
@@ -170,8 +171,11 @@ namespace Scarlet.IO.BeagleBone
 				Addr.CanFamily = AF_CAN;
 				Addr.CanIfIndex = Req.IfIndex;
 				if (bind(Socket, ref Addr, Marshal.SizeOf(Addr)) < 0) { throw new Exception("Error while binding socket. Error code: " + Marshal.GetLastWin32Error()); };
-				int ExtendedCAN = Extended ? 1 : 0;
-				if (setsockopt(Socket, SOL_CAN_RAW, CAN_RAW_FD_FRAMES, ref ExtendedCAN, Marshal.SizeOf(ExtendedCAN)) != 0) { throw new Exception("Failed to enable Extended CAN. Error code: " + Marshal.GetLastWin32Error()); }
+				if (Extended)
+				{
+					int ExtendedCAN = Extended ? 1 : 0;
+					if (setsockopt(Socket, SOL_CAN_RAW, CAN_RAW_FD_FRAMES, ref ExtendedCAN, Marshal.SizeOf(ExtendedCAN)) != 0) { throw new Exception("Failed to enable Extended CAN. Error code: " + Marshal.GetLastWin32Error()); }
+				}
 			}
 		}
 
@@ -245,7 +249,7 @@ namespace Scarlet.IO.BeagleBone
 				if (Extended)
 				{
 					ExtendedCANFrame Frame = new ExtendedCANFrame();
-					Frame.CANID = ID;
+					Frame.CANID = ID | CAN_EFF_FLAG;
 					Frame.DataLength = DLCToLen(LenToDLC((byte)Data.Length));
 					for (int i = 0; i < Data.Length; i++) { Frame.Data[i] = Data[i]; }
 					BytesWritten = write(Socket, ref Frame, Marshal.SizeOf(Frame));
