@@ -1346,4 +1346,4 @@ namespace Scarlet.IO.BeagleBone
 			return Output;
 		}
 	}
-	
+}
