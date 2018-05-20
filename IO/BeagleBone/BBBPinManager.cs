@@ -287,6 +287,7 @@ namespace Scarlet.IO.BeagleBone
 		/// <param name="TX"> The pin to use for the transmit line. </param>
 		/// <param name="RX"> The pin to use for the receive line. </param>
 		/// <exception cref="InvalidOperationException"> If one of the given pins cannot be used for CAN at this time. Reason will be given. </exception>
+		[Obsolete("Currently not functioning, use AddBusCAN instead.")]
 		public static void AddMappingsCAN(BBBPin TX, BBBPin RX)
 		{
 			byte TXMode = Pin.GetModeID(TX, BBBPinMode.CAN);
@@ -415,12 +416,25 @@ namespace Scarlet.IO.BeagleBone
 		}
 		#endregion
 
+		/// <summary>
+		/// Prepares the given CAN bus for use. Assumes device tree changes have already been made external to Scarlet.
+		/// You'll need to call ApplyPinSettings() to actually initialize the bus. Please read the OneNote documentation regarding this, as it is a complex process.
+		/// </summary>
+		/// <param name="BusID"> The bus number to prepare for use. </param>
+		/// <exception cref="InvalidOperationException"> If the given bus is unavailable. Only 0 and 1 exist on the BBB. </exception>
+		public static void AddBusCAN(byte BusID)
+		{
+			if (BusID > 1) { throw new InvalidOperationException("Only CAN bus 0 and 1 exist."); }
+			EnableCANBuses[BusID] = true;
+		}
+
 		public enum ApplicationMode { NO_CHANGES, APPLY_IF_NONE, REMOVE_AND_APPLY, APPLY_REGARDLESS }
 
 		/// <summary>
 		/// Generates the device tree file, compiles it, and instructs the kernel to load the overlay though the cape manager. May take a while. Should only be run once per program execution.
 		/// We recommend you only do this once per BBB OS reboot, as removing the device tree overlay can cause serious issues. Please read the OneNote page for more info.
 		/// </summary>
+		/// <remarks> If no device tree overlay changes are required, calling this will initialize other systems, like the CAN buses, then do nothing. </remarks>
 		/// <param name="Mode">
 		/// The behaviour to use when determining what to do during application of the overlay. Please read the OneNote documentation for a more thorough explanation.
 		/// NO_CHANGES: Does not apply the device tree overlay regardles
@@ -438,7 +452,11 @@ namespace Scarlet.IO.BeagleBone
 			   (CANMappings == null || CANMappings.Count == 0) &&
 			   (UARTMappings == null || UARTMappings.Count == 0) &&
 			   (ADCMappings == null || ADCMappings.Count == 0))
-			{ Log.Output(Log.Severity.INFO, Log.Source.HARDWAREIO, "No pins defined, skipping device tree application."); return; }
+			{
+				Log.Output(Log.Severity.INFO, Log.Source.HARDWAREIO, "No pins defined, skipping device tree application.");
+				InitBuses(false);
+				return;
+			}
 			if (!StateStore.Started) { throw new Exception("Please start the StateStore system first."); }
 			string FileName = "Scarlet-DT";
 			string PrevNum = StateStore.GetOrCreate("Scarlet-DevTreeNum", "0");
@@ -532,13 +550,21 @@ namespace Scarlet.IO.BeagleBone
 			}
 			if (WarnAboutApplication) { Log.Output(Log.Severity.WARNING, Log.Source.HARDWAREIO, "Scarlet device tree overlays have not been applied. Ensure that this is what you intended, otherwise I/O pins may not work as expected."); }
 
-			// Start relevant components.
+			InitBuses(true);
+		}
+
+		private static void InitBuses(bool HadDevTreeChanges)
+		{
 			Log.Output(Log.Severity.DEBUG, Log.Source.HARDWAREIO, "Initializing components...");
-			I2CBBB.Initialize(EnableI2CBuses);
-			SPIBBB.Initialize(EnableSPIBuses);
-			PWMBBB.Initialize(EnablePWMBuses);
 			CANBBB.Initialize(EnableCANBuses, new bool[] { true, false });
-			UARTBBB.Initialize(EnableUARTBuses);
+			if (HadDevTreeChanges)
+			{
+				I2CBBB.Initialize(EnableI2CBuses);
+				SPIBBB.Initialize(EnableSPIBuses);
+				PWMBBB.Initialize(EnablePWMBuses);
+				CANBBB.Initialize(EnableCANBuses, new bool[] { true, false });
+				UARTBBB.Initialize(EnableUARTBuses);
+			}
 			Log.Output(Log.Severity.DEBUG, Log.Source.HARDWAREIO, "BBB ready!");
 		}
 
