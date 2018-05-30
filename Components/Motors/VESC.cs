@@ -9,7 +9,43 @@ namespace Scarlet.Components.Motors
 {
     public class VESC : IMotor
     {
-        private IFilter<float> Filter; // Filter for speed output
+        #region enums
+        private enum UARTPacketID : byte
+        {
+            // Full enum list here: https://github.com/vedderb/bldc_uart_comm_stm32f4_discovery/blob/master/datatypes.h
+            FW_VERSION = 0,
+            GET_VALUES = 4,
+            SET_DUTY = 5,
+            SET_CURRENT = 6,
+            SET_CURRENT_BRAKE = 7,
+            SET_RPM = 8,
+            SET_POS = 9,
+            SET_DETECT = 10,
+            REBOOT = 28,
+            ALIVE = 29,
+            FORWARD_CAN = 33,
+        }
+
+        private enum CANPacketID : byte
+        {
+            CAN_PACKET_SET_DUTY = 0,
+            CAN_PACKET_SET_CURRENT = 1,
+            CAN_PACKET_SET_CURRENT_BRAKE = 2,
+            CAN_PACKET_SET_RPM = 3,
+            CAN_PACKET_SET_POS = 4,
+            CAN_PACKET_FILL_RX_BUFFER = 5,
+            CAN_PACKET_FILL_RX_BUFFER_LONG = 6,
+            CAN_PACKET_PROCESS_RX_BUFFER = 7,
+            CAN_PACKET_PROCESS_SHORT_BUFFER = 8,
+            CAN_PACKET_STATUS = 9,
+        }
+        #endregion
+
+        private const sbyte MOTOR_MAX_RPM = 60;
+        private int ERPM_PER_RPM = 518;
+
+        private IFilter<sbyte> RPMFilter; // Filter for speed output
+        
         private readonly IUARTBus UARTBus;
         private readonly int CANForwardID;
         private readonly float MaxSpeed;
@@ -22,18 +58,43 @@ namespace Scarlet.Components.Motors
         /// <param name="UARTBus"> UART output to control the motor controller </param>
         /// <param name="MaxSpeed"> Limiting factor for speed (should never exceed + or - this val) </param>
         /// <param name="CANForwardID"> CAN ID of the motor controller (-1 to disable CAN forwarding) </param>
-        /// <param name="SpeedFilter"> Filter to use with MC. Good for ramp-up protection and other applications </param>
-        public VESC(IUARTBus UARTBus, float MaxSpeed, int CANForwardId = -1, IFilter<float> SpeedFilter = null)
+        /// <param name="RPMFilter"> Filter to use with MC. Good for ramp-up protection and other applications </param>
+        public VESC(IUARTBus UARTBus, float MaxSpeed, int CANForwardID = -1, IFilter<sbyte> RPMFilter = null, int ERPMPerRPM = 518)
+            : this(UARTBus, (sbyte)(MaxSpeed * MOTOR_MAX_RPM), CANForwardID, RPMFilter, ERPMPerRPM) { }
+
+        public VESC(IUARTBus UARTBus, sbyte MaxRPM, int CANForwardID = -1, IFilter<sbyte> RPMFilter = null, int ERPMPerRPM = 518)
         {
+            IsCAN = false;
+            this.ERPM_PER_RPM = ERPMPerRPM;
             this.UARTBus = UARTBus;
             this.UARTBus.BaudRate = UARTRate.BAUD_115200;
             this.UARTBus.BitLength = UARTBitCount.BITS_8;
             this.UARTBus.StopBits = UARTStopBits.STOPBITS_1;
             this.UARTBus.Parity = UARTParity.PARITY_NONE;
-            this.CANForwardID = CANForwardId;
-            this.MaxSpeed = Math.Abs(MaxSpeed);
-            this.Filter = SpeedFilter;
-            this.SetSpeedDirectly(0.0f);
+            this.CANForwardID = CANForwardID;
+            this.MaxRPM = Math.Abs(MaxRPM);
+            this.RPMFilter = RPMFilter;
+            this.SetRPMDirectly(0);
+            SetSpeedThreadFactory().Start();
+        }
+
+        public VESC(ICANBus CANBus, float MaxSpeed, uint CANID, IFilter<sbyte> RPMFilter = null, int ERPMPerRPM = 518)
+            : this(CANBus, (sbyte)(MaxSpeed * MOTOR_MAX_RPM), CANID, RPMFilter, ERPMPerRPM) { }
+
+        /// <summary> Initializes a VESC Motor controller </summary>
+        /// <param name="CANBus"> CAN output to control the motor controller </param>
+        /// <param name="MaxRPM"> Limiting factor for speed (should never exceed + or - this val) </param>
+        /// <param name="RPMFilter"> Filter to use with MC. Good for ramp-up protection and other applications </param>
+        public VESC(ICANBus CANBus, sbyte MaxRPM, uint CANID, IFilter<sbyte> RPMFilter = null, int ERPMPerRPM = 518)
+        {
+            IsCAN = true;
+            this.ERPM_PER_RPM = ERPMPerRPM;
+            this.CANBus = CANBus;
+            this.MaxRPM = Math.Abs(MaxRPM);
+            this.CANID = CANID;
+            this.RPMFilter = RPMFilter;
+            this.SetRPMDirectly(0);
+            SetSpeedThreadFactory().Start();
         }
 
         public void EventTriggered(object Sender, EventArgs Event) { }
