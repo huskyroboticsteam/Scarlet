@@ -71,6 +71,7 @@
     <Compile Include="Components\ISubsystem.cs" />
     <Compile Include="Components\Motors\CytronMD30C.cs" />
     <Compile Include="Components\Motors\Servo.cs" />
+    <Compile Include="Components\Motors\SongMC.cs" />
     <Compile Include="Components\Motors\TalonMC.cs" />
     <Compile Include="Components\Motors\VESC.cs" />
     <Compile Include="Components\Sensors\BNO055.cs" />
